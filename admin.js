@@ -216,7 +216,7 @@ async function loadToday() {
     const res = await api('adminTodaySales', { token: state.token });
     if (!res.ok) { el.innerHTML = `<div class="empty">Ошибка: ${res.error}</div>`; return; }
     if (!res.sales.length) { el.innerHTML = `<div class="empty">За сегодня записей нет</div>`; return; }
-    el.innerHTML = res.sales.map((s) => `
+    el.innerHTML = res.sales.slice().reverse().map((s) => `
       <div class="list-item">
         <div>
           <div class="main">${escapeHtml(s.fio)}</div>
