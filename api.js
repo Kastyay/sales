@@ -1,4 +1,4 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbymg8x3CZZViHl40NYM_Djk16EeDEt5f5xg6839fpJviZk3JqbvRxrZvbGi7eqx8KtsLA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxF95hIIS5ZkMNTurholaR7mpOzC8kq3lihotUd0zoo_ElwW7VGcVFJoHHQ6qpUk7eI-g/exec';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
