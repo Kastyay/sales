@@ -7,8 +7,9 @@ const PRODUCTS = {
 const state = {
   id: null,
   fio: null,
+  city: null, // Добавили город
   openProduct: null,
-  lastSale: null, // {product, subtype, ts}
+  lastSale: null,
   todaySales: [],
 };
 
@@ -28,6 +29,7 @@ async function init() {
       return;
     }
     state.fio = res.fio;
+    state.city = res.city || ''; // Сохраняем город
     render();
     loadToday();
   } catch (e) {
@@ -39,7 +41,7 @@ function render() {
   const firstName = state.fio.split(' ')[1] || state.fio.split(' ')[0];
   app.innerHTML = `
     <div class="greeting">Здравствуйте, ${escapeHtml(firstName)}
-      <span>${escapeHtml(state.fio)}</span>
+      <span>${escapeHtml(state.fio)} ${state.city ? '· ' + escapeHtml(state.city) : ''}</span>
     </div>
 
     <div id="products"></div>
@@ -91,7 +93,6 @@ function toggleCard(product) {
 }
 
 async function addSale(product, subtype, btn) {
-  // Клиентская защита от дубля
   if (state.lastSale &&
       state.lastSale.product === product &&
       state.lastSale.subtype === subtype &&
@@ -146,6 +147,8 @@ async function loadToday() {
       el.innerHTML = `<div class="empty">Пока ничего не записано</div>`;
       return;
     }
+    
+    // Добавили .slice().reverse(), чтобы новые записи были сверху
     el.innerHTML = res.sales.slice().reverse().map((s) => `
       <div class="list-item">
         <div>
