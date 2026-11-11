@@ -146,7 +146,7 @@ async function loadToday() {
       el.innerHTML = `<div class="empty">Пока ничего не записано</div>`;
       return;
     }
-    el.innerHTML = res.sales.map((s) => `
+    el.innerHTML = res.sales.slice().reverse().map((s) => `
       <div class="list-item">
         <div>
           <div class="main">${escapeHtml(s.product)} · ${escapeHtml(s.subtype)}</div>
