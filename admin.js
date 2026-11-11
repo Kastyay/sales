@@ -147,6 +147,7 @@ function renderEmployees() {
       <div style="min-width:0;">
         <div class="main">
           ${escapeHtml(emp.fio)}
+          ${emp.city ? `<span style="font-size:13px; color:var(--muted); font-weight:400;">(${escapeHtml(emp.city)})</span>` : ''}
           <span class="status-badge status-${emp.status === 'активен' ? 'active' : 'archive'}">
             ${emp.status === 'активен' ? 'активен' : 'архив'}
           </span>
@@ -185,9 +186,24 @@ async function handleEmpAction(action, id) {
   }
   if (action === 'rename') {
     const newName = prompt('Новое ФИО:', emp.fio);
-    if (!newName || newName === emp.fio) return;
-    const res = await api('adminRenameEmployee', { token: state.token, id, fio: newName });
-    if (res.ok) { emp.fio = newName; renderEmployees(); toast('Сохранено'); }
+    if (newName === null) return;
+    
+    const newCity = prompt('Город (Астрахань / Саранск):', emp.city || '');
+    if (newCity === null) return;
+
+    const res = await api('adminRenameEmployee', { 
+      token: state.token, 
+      id: id, 
+      fio: newName.trim(), 
+      city: newCity.trim() 
+    });
+    
+    if (res.ok) { 
+      emp.fio = newName.trim(); 
+      emp.city = newCity.trim();
+      renderEmployees(); 
+      toast('Сохранено'); 
+    }
     else toast('Ошибка: ' + res.error);
   }
   if (action === 'archive') {
@@ -201,7 +217,10 @@ async function handleEmpAction(action, id) {
 async function addEmployee() {
   const fio = prompt('ФИО нового сотрудника:');
   if (!fio || !fio.trim()) return;
-  const res = await api('adminAddEmployee', { token: state.token, fio: fio.trim() });
+  
+  const city = prompt('Город (Астрахань / Саранск):') || '';
+  
+  const res = await api('adminAddEmployee', { token: state.token, fio: fio.trim(), city: city.trim() });
   if (!res.ok) { toast('Ошибка: ' + res.error); return; }
   const refresh = await api('adminEmployees', { token: state.token });
   if (refresh.ok) state.employees = refresh.employees;
@@ -216,15 +235,18 @@ async function loadToday() {
     const res = await api('adminTodaySales', { token: state.token });
     if (!res.ok) { el.innerHTML = `<div class="empty">Ошибка: ${res.error}</div>`; return; }
     if (!res.sales.length) { el.innerHTML = `<div class="empty">За сегодня записей нет</div>`; return; }
+    
+    // Добавили .slice().reverse() и отображение города
     el.innerHTML = res.sales.slice().reverse().map((s) => `
       <div class="list-item">
         <div>
-          <div class="main">${escapeHtml(s.fio)}</div>
+          <div class="main">${escapeHtml(s.fio)} ${s.city ? `<span style="font-size:13px; color:var(--muted); font-weight:400;">(${escapeHtml(s.city)})</span>` : ''}</div>
           <div class="sub">${escapeHtml(s.product)} · ${escapeHtml(s.subtype)} — ${escapeHtml(s.time)}</div>
         </div>
         <button class="btn btn-sm btn-danger" data-sale="${s.saleId}">Удалить</button>
       </div>
     `).join('');
+    
     el.querySelectorAll('[data-sale]').forEach((btn) => {
       btn.onclick = async () => {
         if (!confirm('Удалить эту запись?')) return;
