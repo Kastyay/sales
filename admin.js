@@ -4,6 +4,7 @@ const state = {
   period: 'today',
   from: '',
   to: '',
+  editingId: null, // Для хранения ID при редактировании
 };
 
 const app = document.getElementById('app');
@@ -72,6 +73,21 @@ function renderApp() {
 
     <div class="tab-panel active" id="panel-emp">
       <button class="btn btn-primary btn-block" id="addEmpBtn">+ Добавить сотрудника</button>
+      
+      <!-- Скрытая форма для добавления/редактирования -->
+      <div id="empForm" style="display:none; margin-top: 16px; background: var(--card); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+        <div class="field">
+          <input type="text" id="empFio" placeholder="ФИО (Иванов Иван)">
+        </div>
+        <div class="field">
+          <input type="text" id="empCity" placeholder="Город (Астрахань / Саранск)">
+        </div>
+        <div class="row-gap">
+          <button class="btn btn-primary" id="saveEmpBtn">Сохранить</button>
+          <button class="btn" id="cancelEmpBtn">Отмена</button>
+        </div>
+      </div>
+
       <div id="empList" class="mt"></div>
     </div>
 
@@ -113,7 +129,61 @@ function renderApp() {
     };
   });
 
-  document.getElementById('addEmpBtn').onclick = addEmployee;
+  // Логика работы формы
+  const empForm = document.getElementById('empForm');
+  const empFio = document.getElementById('empFio');
+  const empCity = document.getElementById('empCity');
+  const saveEmpBtn = document.getElementById('saveEmpBtn');
+  const cancelEmpBtn = document.getElementById('cancelEmpBtn');
+
+  document.getElementById('addEmpBtn').onclick = () => {
+    state.editingId = null;
+    empFio.value = '';
+    empCity.value = '';
+    empForm.style.display = 'block';
+    empFio.focus();
+  };
+
+  cancelEmpBtn.onclick = () => {
+    empForm.style.display = 'none';
+  };
+
+  saveEmpBtn.onclick = async () => {
+    const fio = empFio.value.trim();
+    const city = empCity.value.trim();
+    if (!fio) { alert('Введите ФИО'); return; }
+
+    saveEmpBtn.disabled = true;
+    saveEmpBtn.textContent = 'Сохранение...';
+
+    try {
+      let res;
+      if (state.editingId) {
+        // Редактирование
+        res = await api('adminRenameEmployee', { token: state.token, id: state.editingId, fio, city });
+      } else {
+        // Добавление
+        res = await api('adminAddEmployee', { token: state.token, fio, city });
+      }
+
+      if (!res.ok) throw new Error(res.error);
+
+      // Обновляем список
+      const refresh = await api('adminEmployees', { token: state.token });
+      if (refresh.ok) state.employees = refresh.employees;
+      
+      renderEmployees();
+      empForm.style.display = 'none';
+      toast(state.editingId ? 'Обновлено' : 'Сотрудник добавлен');
+      state.editingId = null;
+    } catch (e) {
+      toast('Ошибка: ' + e.message);
+    } finally {
+      saveEmpBtn.disabled = false;
+      saveEmpBtn.textContent = 'Сохранить';
+    }
+  };
+
   document.getElementById('refreshToday').onclick = loadToday;
   document.querySelectorAll('.period-btn').forEach((btn) => {
     btn.onclick = () => {
@@ -156,7 +226,7 @@ function renderEmployees() {
       <div class="actions">
         ${emp.status === 'активен' ? `
           <button class="btn btn-sm" data-action="copy" data-id="${emp.id}">🔗</button>
-          <button class="btn btn-sm" data-action="rename" data-id="${emp.id}">✏️</button>
+          <button class="btn btn-sm" data-action="edit" data-id="${emp.id}">✏️</button>
           <button class="btn btn-sm btn-danger" data-action="archive" data-id="${emp.id}">×</button>
         ` : ''}
       </div>
@@ -175,6 +245,7 @@ function empLink(id) {
 
 async function handleEmpAction(action, id) {
   const emp = state.employees.find((e) => e.id === id);
+  
   if (action === 'copy') {
     const link = empLink(id);
     try {
@@ -184,48 +255,22 @@ async function handleEmpAction(action, id) {
       prompt('Скопируйте ссылку:', link);
     }
   }
-  if (action === 'rename') {
-    const newName = prompt('Новое ФИО:', emp.fio);
-    if (newName === null) return;
-    
-    const newCity = prompt('Город (Астрахань / Саранск):', emp.city || '');
-    if (newCity === null) return;
-
-    const res = await api('adminRenameEmployee', { 
-      token: state.token, 
-      id: id, 
-      fio: newName.trim(), 
-      city: newCity.trim() 
-    });
-    
-    if (res.ok) { 
-      emp.fio = newName.trim(); 
-      emp.city = newCity.trim();
-      renderEmployees(); 
-      toast('Сохранено'); 
-    }
-    else toast('Ошибка: ' + res.error);
+  
+  if (action === 'edit') {
+    state.editingId = id;
+    document.getElementById('empFio').value = emp.fio;
+    document.getElementById('empCity').value = emp.city || '';
+    document.getElementById('empForm').style.display = 'block';
+    document.getElementById('empFio').focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // Прокрутка к форме
   }
+  
   if (action === 'archive') {
     if (!confirm(`Отправить ${emp.fio} в архив? Ссылка перестанет работать.`)) return;
     const res = await api('adminArchiveEmployee', { token: state.token, id });
     if (res.ok) { emp.status = 'архив'; renderEmployees(); toast('В архиве'); }
     else toast('Ошибка: ' + res.error);
   }
-}
-
-async function addEmployee() {
-  const fio = prompt('ФИО нового сотрудника:');
-  if (!fio || !fio.trim()) return;
-  
-  const city = prompt('Город (Астрахань / Саранск):') || '';
-  
-  const res = await api('adminAddEmployee', { token: state.token, fio: fio.trim(), city: city.trim() });
-  if (!res.ok) { toast('Ошибка: ' + res.error); return; }
-  const refresh = await api('adminEmployees', { token: state.token });
-  if (refresh.ok) state.employees = refresh.employees;
-  renderEmployees();
-  toast('Сотрудник добавлен');
 }
 
 async function loadToday() {
@@ -236,7 +281,6 @@ async function loadToday() {
     if (!res.ok) { el.innerHTML = `<div class="empty">Ошибка: ${res.error}</div>`; return; }
     if (!res.sales.length) { el.innerHTML = `<div class="empty">За сегодня записей нет</div>`; return; }
     
-    // Добавили .slice().reverse() и отображение города
     el.innerHTML = res.sales.slice().reverse().map((s) => `
       <div class="list-item">
         <div>
